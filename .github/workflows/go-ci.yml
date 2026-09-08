@@ -1,0 +1,118 @@
+# Reusable Go CI: gofmt, vet, staticcheck, race tests, build.
+#
+# Call it from any repository:
+#
+#   jobs:
+#     ci:
+#       uses: cdhdt/dev-process/.github/workflows/go-ci.yml@main
+#       with:
+#         go-version: '1.26'
+#         postgres: true
+#         database-url-env: MYPROJECT_TEST_DATABASE_URL
+#
+# The steps mirror what a project's `make check` runs, in the same order, so a
+# green local check and a green pipeline mean the same thing. When a step is
+# added here, add it to the project's check target the same day.
+name: Go CI
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: Go version to install.
+        type: string
+        default: '1.26'
+      postgres:
+        description: >-
+          Provision a PostgreSQL service and export its URL. Tests that need a
+          database must fail rather than skip when this is true and the
+          variable is missing — a skip prints nothing without -v.
+        type: boolean
+        default: false
+      postgres-image:
+        description: PostgreSQL image tag.
+        type: string
+        default: 'postgres:17'
+      database-url-env:
+        description: Environment variable carrying the connection string.
+        type: string
+        default: TEST_DATABASE_URL
+      staticcheck-version:
+        description: Pinned staticcheck version. Never unpinned.
+        type: string
+        default: '2025.1.1'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: ${{ !inputs.postgres }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          check-latest: true
+      - name: gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "These files are not gofmt-clean:"
+            echo "$out"
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@${{ inputs.staticcheck-version }} ./...
+      - name: Test
+        run: go test -race ./...
+      - name: Build
+        run: go build ./...
+
+  check-with-postgres:
+    if: ${{ inputs.postgres }}
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: ${{ inputs.postgres-image }}
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ci_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      # GitHub Actions does not allow an expression as an `env:` key, so the
+      # caller's variable name is exported here instead, where a dynamic name
+      # is allowed. Tests reading it must fail, not skip, when it is unset in
+      # CI: a skip prints nothing under `go test` without -v.
+      - name: Export the database URL under the caller's variable name
+        run: echo "${{ inputs.database-url-env }}=postgres://postgres:postgres@localhost:5432/ci_test" >> "$GITHUB_ENV"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          check-latest: true
+      - name: gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "These files are not gofmt-clean:"
+            echo "$out"
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@${{ inputs.staticcheck-version }} ./...
+      - name: Test
+        run: go test -race ./...
+      - name: Build
+        run: go build ./...

@@ -95,7 +95,7 @@ jobs:
       # is allowed. Tests reading it must fail, not skip, when it is unset in
       # CI: a skip prints nothing under `go test` without -v.
       - name: Export the database URL under the caller's variable name
-        run: echo "${{ inputs.database-url-env }}=postgres://postgres:postgres@localhost:5432/ci_test" >> "$GITHUB_ENV"
+        run: echo "${{ inputs.database-url-env }}_TYPO=postgres://postgres:postgres@localhost:5432/ci_test" >> "$GITHUB_ENV"
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ inputs.go-version }}

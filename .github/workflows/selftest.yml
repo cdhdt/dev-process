@@ -1,0 +1,47 @@
+# Self-test for go-ci.yml.
+#
+# go-ci.yml is a reusable workflow consumed by other repositories (currently
+# cdhdt/lapigo, whose branch protection requires its "check-with-postgres"
+# job to be green). This repository carries no Go code of its own to check,
+# so without this workflow a mistake in go-ci.yml would only ever surface in
+# a consumer's pull request, attributed to a change made there.
+#
+# selfcheck/ is a throwaway Go module that exists solely to be built and
+# tested by the two calls below. It proves two things on every push here:
+#
+#   - postgres: false still gofmt's, vets, tests, and builds a plain module.
+#   - postgres: true still provisions Postgres and gets its connection
+#     string to the test process under whatever name the caller chooses for
+#     database-url-env -- the dynamic $GITHUB_ENV export is the part most
+#     likely to break silently, so selfcheck/postgres_test.go fails outright
+#     rather than skip when that export doesn't reach it.
+#
+# See selfcheck/selfcheck.go for why the module lives at the repository root
+# rather than under testdata/, and selfcheck/postgres_test.go for why it can
+# tell the two calls below apart without go-ci.yml exposing a
+# working-directory input.
+name: Self-test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Job ids intentionally match go-ci.yml's own job ids (see
+  # postgres_test.go): GITHUB_JOB is set to whichever of the two is
+  # currently running, and naming the caller job identically means the test
+  # gets the right answer regardless of whether that variable reflects the
+  # caller's job id or the called workflow's.
+  check:
+    uses: ./.github/workflows/go-ci.yml
+    with:
+      postgres: false
+
+  check-with-postgres:
+    uses: ./.github/workflows/go-ci.yml
+    with:
+      postgres: true
+      database-url-env: SELFCHECK_TEST_DATABASE_URL

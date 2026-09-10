@@ -103,10 +103,15 @@ a consumer silently freezes on whatever commit `v1` last pointed to, and
 nothing here says so. [`update-major-tag.yml`](.github/workflows/update-major-tag.yml)
 re-points `v1` at the tip of `main` automatically on every push to `main`,
 using the repository's own `GITHUB_TOKEN`. No maintainer step, nothing to
-forget. It also accepts a manual `workflow_dispatch` (with the tag name as an
-input, defaulting to `v1`) so the mechanism can be exercised without a push to
-`main` — this is how it was verified before this policy was documented; see
-the pull request that introduced it.
+forget.
+
+It also accepts a manual `workflow_dispatch` (with the tag name as an input,
+defaulting to `v1`) so the mechanism can be re-run or probed against a
+disposable tag name without waiting for a push to `main`. GitHub only lets
+`workflow_dispatch` target a workflow that already exists on the repository's
+default branch, so this cannot be exercised until the workflow itself has
+merged to `main` once — see the pull request that introduced it for how that
+first run was confirmed.
 
 ## Why the rules carry their incidents
 

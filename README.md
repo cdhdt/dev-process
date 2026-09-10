@@ -43,6 +43,76 @@ Where a project's own document disagrees with this one, the project wins. Its
 `CONTRIBUTING.md` and `CLAUDE.md` are closer to the code and are what a
 reviewer will actually apply.
 
+## Versioning the reusable workflows
+
+The workflows under [`.github/workflows/`](.github/workflows) are consumed by
+`uses:` from other repositories' own CI. `cdhdt/lapigo` calls `go-ci.yml` and
+its branch protection requires the resulting `check-with-postgres` job to be
+green — a mistake in a workflow here reaches that repository's pull requests
+before anyone here has looked at it.
+
+**Pin `@v1`, never `@main`.**
+
+```yaml
+jobs:
+  ci:
+    uses: cdhdt/dev-process/.github/workflows/go-ci.yml@v1
+```
+
+`@main` moves on every merge to this repository, with no boundary between
+"someone edited a workflow" and "every consumer's next CI run uses the new
+one." `@main` is **not supported** for a consumer's CI: if a workflow file
+here changes underneath you and nobody said so, it is because you pinned a
+branch instead of a version.
+
+### What `v1` promises
+
+`v1` is a moving tag over the current major version. Re-pointing it to a new
+commit on `main` must never require a consumer to change anything:
+
+- The `workflow_call` `inputs:` of an existing workflow keep their names,
+  types, and defaults. Adding an optional input with a default is fine;
+  renaming, removing, or narrowing one is not.
+- A job id a consumer's branch protection depends on (`check`,
+  `check-with-postgres`) keeps its id and keeps meaning the same thing.
+- The steps a workflow runs may be improved — a newer tool version, a faster
+  cache, an extra check that was silently missing — as long as a green run
+  before the change stays green after it, for any consumer already passing.
+
+In short: **`v1` may get stricter or faster, never incompatible.**
+
+### What would justify `v2`
+
+A new major tag is for a change that a consumer must react to, for example:
+
+- Removing, renaming, or repurposing a `workflow_call` input.
+- Renaming a job id that branch protection rules reference.
+- Changing what a passing run means in a way that could fail a consumer that
+  was previously green through no fault of their own (for example, turning on
+  a lint category that a real project is expected to violate).
+
+A breaking change lands on `main` and ships under `v2`; `v1` keeps pointing at
+the last commit that honoured the promise above. Both tags can coexist
+indefinitely — a consumer upgrades to `v2` on their own schedule, by editing
+one line.
+
+### Keeping `v1` pointed at `main`
+
+A tag that moves only when someone remembers to move it is worse than no tag:
+a consumer silently freezes on whatever commit `v1` last pointed to, and
+nothing here says so. [`update-major-tag.yml`](.github/workflows/update-major-tag.yml)
+re-points `v1` at the tip of `main` automatically on every push to `main`,
+using the repository's own `GITHUB_TOKEN`. No maintainer step, nothing to
+forget.
+
+It also accepts a manual `workflow_dispatch` (with the tag name as an input,
+defaulting to `v1`) so the mechanism can be re-run or probed against a
+disposable tag name without waiting for a push to `main`. GitHub only lets
+`workflow_dispatch` target a workflow that already exists on the repository's
+default branch, so this cannot be exercised until the workflow itself has
+merged to `main` once — see the pull request that introduced it for how that
+first run was confirmed.
+
 ## Why the rules carry their incidents
 
 Every rule here is followed by what happened when it was missing. That is not

@@ -1,0 +1,50 @@
+# Re-points the moving major tag `v1` at the tip of `main` on every push.
+#
+# See the "Versioning the reusable workflows" section of README.md for the
+# contract this enforces: v1 may only move to a commit that keeps every
+# workflow_call input and job id compatible with what v1 already promised.
+# That is a review-time discipline, not something this workflow can check —
+# what this workflow guarantees is the mechanical half: nobody has to
+# remember to move the tag, because a merge to main and a moved v1 happen in
+# the same push. A tag nobody remembers to move is worse than no tag at all.
+#
+# workflow_dispatch exists so the re-point mechanism itself can be exercised
+# on a branch, against a disposable tag name, without pushing to main or
+# touching the real v1 tag.
+name: Update major version tag
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Tag to move to the current commit. Defaults to v1; override only
+          to test the mechanism against a disposable tag name.
+        type: string
+        default: v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-major-tag
+  cancel-in-progress: false
+
+jobs:
+  update-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Move the tag to this commit
+        env:
+          TAG: ${{ inputs.tag || 'v1' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG" "${{ github.sha }}"
+          git push origin "refs/tags/$TAG" --force

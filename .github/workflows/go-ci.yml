@@ -1,4 +1,4 @@
-# Reusable Go CI: gofmt, vet, staticcheck, race tests, build.
+# Reusable Go CI: gofmt, vet, staticcheck, race tests (never cached), build.
 #
 # Call it from any repository:
 #
@@ -13,6 +13,9 @@
 # The steps mirror what a project's `make check` runs, in the same order, so a
 # green local check and a green pipeline mean the same thing. When a step is
 # added here, add it to the project's check target the same day.
+#
+# Tests run with -count=1: GOCACHE is restored by setup-go, and a cached pass
+# is indistinguishable from a real one (process/testing.md, "Cached results").
 name: Go CI
 
 on:
@@ -68,7 +71,7 @@ jobs:
       - name: staticcheck
         run: go run honnef.co/go/tools/cmd/staticcheck@${{ inputs.staticcheck-version }} ./...
       - name: Test
-        run: go test -race ./...
+        run: go test -race -count=1 ./...
       - name: Build
         run: go build ./...
 
@@ -113,6 +116,6 @@ jobs:
       - name: staticcheck
         run: go run honnef.co/go/tools/cmd/staticcheck@${{ inputs.staticcheck-version }} ./...
       - name: Test
-        run: go test -race ./...
+        run: go test -race -count=1 ./...
       - name: Build
         run: go build ./...
